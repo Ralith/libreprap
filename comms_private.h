@@ -1,6 +1,10 @@
 #ifndef _COMMS_PRIVATE_H_
 #define _COMMS_PRIVATE_H_
 
+#ifdef USB
+#include <libusb-1.0/libusb.h>
+#endif
+
 #include "gcode.h"
 
 /* Do not change */
@@ -19,6 +23,10 @@ void blocknode_free(blocknode *node);
 struct rr_dev_t {
   rr_proto proto;
   int fd;
+#ifdef USB
+  libusb_device_handle *usb;
+#endif
+
   /* Line currently being sent */
   unsigned long lineno;
 

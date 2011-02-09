@@ -8,9 +8,10 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#include "ports.h"
+#include "ports_private.h"
 #include "serial.h"
 #include "gcode.h"
-
 #include "fived.h"
 #include "tonokip.h"
 
@@ -73,14 +74,32 @@ rr_dev rr_create(rr_proto proto,
   device->ww_data = ww_data;
   device->lineno = 0;
   device->fd = -1;
+#ifdef USB
+  device->usb = NULL;
+#endif
   
   return device;
 }
 
-int rr_open(rr_dev device, const char *port, long speed) {
-  device->fd = serial_open(port, speed);
-  if(device->fd < 0) {
-    return device->fd;
+int rr_open(rr_dev device, rr_port port) {
+  switch(port->type) {
+  case PORT_SERIAL:
+    device->fd = serial_open(port->serial.path, port->serial.baud);
+    if(device->fd < 0) {
+      return device->fd;
+    }
+    break;
+#ifdef USB
+  case PORT_USB:
+    if(device->proto != RR_PROTO_USB) {
+      return -1;
+    }
+    int result = libusb_open(port->usb, &device->usb);
+    if(result != 0) {
+      device->usb = NULL;
+      return result;
+    }
+#endif
   }
   return 0;
 }
@@ -111,10 +130,19 @@ void rr_reset(rr_dev device) {
 }
 
 int rr_close(rr_dev device) {
-  int result;
-  do {
-    result = close(device->fd);
-  } while(result < 0 && errno == EINTR);
+  int result = 0;
+#ifdef USB
+  if(device->usb) {
+    libusb_close(device->usb);
+  } else {
+#endif
+    do {
+      result = close(device->fd);
+    } while(result < 0 && errno == EINTR);
+#ifdef USB
+  }
+  device->usb = NULL;
+#endif
   device->fd = -1;
   rr_reset(device);
   return result;

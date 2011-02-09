@@ -23,5 +23,4 @@ else(USB_FOUND)
 endif(USB_FOUND)
 
 install(TARGETS reprap DESTINATION lib)
-install(FILES comms.h DESTINATION include/reprap)
-install(FILES util.h DESTINATION include/reprap)
+install(FILES comms.h util.h ports.h DESTINATION include/reprap)
