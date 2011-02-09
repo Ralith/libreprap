@@ -11,7 +11,7 @@
 
 // Convert between the numeric speed and the termios representation
 // thereof.  Returns < 0 if argument is an unsupported speed.
-speed_t ntocf(long l) {
+speed_t ntocf(unsigned long l) {
 	switch(l) {
 #ifdef B0
 	case 0:
@@ -151,7 +151,7 @@ int serial_set_attrib(int fd, struct termios* attribp) {
 	return 0;
 }
 
-int serial_init(int fd, long speed) {
+int serial_init(int fd, unsigned long speed) {
 	int status;
 	struct termios attribs;
 	// Initialize attribs
@@ -230,7 +230,7 @@ int serial_init(int fd, long speed) {
 
 /* Returns a prepared FD for the serial device specified, or some
  * value < 0 if an error occurred. */
-int serial_open(const char *path, long speed) {
+int serial_open(const char *path, unsigned long speed) {
 	int fd;
   do {
     fd = open(path, O_RDWR | O_NOCTTY | O_NDELAY);

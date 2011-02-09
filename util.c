@@ -6,13 +6,20 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifdef USB
+#include <libusb-1.0/libusb.h>
+#endif
+
+#include "ports.h"
+#include "ports_private.h"
+
 #define DEV_PATH "/dev/"
 #define DEV_PREFIXES ((char*[]){"ttyUSB", "ttyACM", NULL})
 #define GUESSES 8
 
-char **rr_enumerate_ports() {
+rr_port *rr_enumerate_ports() {
   size_t size = 4, fill = 0;
-  char **ports = malloc(size * sizeof(char*));
+  rr_port *ports = calloc(size, sizeof(rr_port));
   DIR *devdir = opendir(DEV_PATH);
   if(!devdir) {
     return NULL;
@@ -27,11 +34,17 @@ char **rr_enumerate_ports() {
         /* TODO: Open connection and interrogate device */
         if(fill >= size) {
           size *= 2;
-          ports = realloc(ports, size * sizeof(char*));
+          ports = realloc(ports, size * sizeof(rr_port));
         }
-        ports[fill] = malloc(strlen(file->d_name)+strlen(DEV_PATH)+1);
-        strcpy(ports[fill], DEV_PATH);
-        strcat(ports[fill], file->d_name);
+        ports[fill] = malloc(sizeof(rr_port_t));
+        ports[fill]->type = PORT_SERIAL;
+        const size_t namelen = strlen(file->d_name + 1);
+        ports[fill]->name = malloc(namelen);
+        ports[fill]->serial.path = malloc(namelen + strlen(DEV_PATH) + 1);
+        ports[fill]->serial.baud = 0;
+        strcpy(ports[fill]->name, file->d_name);
+        strcpy(ports[fill]->serial.path, DEV_PATH);
+        strcat(ports[fill]->serial.path, file->d_name);
         ++fill;
       }
     }

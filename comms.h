@@ -3,6 +3,8 @@
 
 #include <sys/types.h>
 
+#include "ports.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -20,6 +22,8 @@ typedef enum {
   RR_PROTO_FIVED,
   /* 5D with different syntax for some absurd reason */
   RR_PROTO_TONOKIP,
+  /* Streamlined native USB */
+  RR_PROTO_USB,
 } rr_proto;
 
 typedef enum {
@@ -78,7 +82,7 @@ rr_dev rr_create(rr_proto proto,
                  rr_errcb onerr, void *onerr_data,
                  rr_boolcb want_writable, void *ww_data,
                  size_t resend_cache_size);
-int rr_open(rr_dev device, const char *port, long speed);
+int rr_open(rr_dev device, rr_port port);
 void rr_reset(rr_dev device);
 int rr_close(rr_dev device);
 /* Deallocate */
