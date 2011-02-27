@@ -1,0 +1,13 @@
+# reprap-clj
+
+A clojure interface to libreprap
+
+## Usage
+
+FIXME: write
+
+## License
+
+Copyright (C) 2011 Elmo Mäntynen
+
+Distributed under the Eclipse Public License, the same as Clojure.
