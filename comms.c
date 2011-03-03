@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <assert.h>
 
 #include "serial.h"
 #include "gcode.h"
@@ -78,6 +79,7 @@ rr_dev rr_create(rr_proto proto,
 }
 
 int rr_open(rr_dev device, const char *port, long speed) {
+  assert(device);
   device->fd = serial_open(port, speed);
   if(device->fd < 0) {
     return device->fd;
@@ -106,11 +108,13 @@ void empty_buffers(rr_dev device) {
 }
 
 void rr_reset(rr_dev device) {
+  assert(device);
   empty_buffers(device);
   device->lineno = 0;
 }
 
 int rr_close(rr_dev device) {
+  assert(device);
   int result;
   do {
     result = close(device->fd);
@@ -121,6 +125,7 @@ int rr_close(rr_dev device) {
 }
 
 void rr_free(rr_dev device) {
+  assert(device);
   empty_buffers(device);
   free(device->sentcache);
   free(device->recvbuf);
