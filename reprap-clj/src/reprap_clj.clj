@@ -6,16 +6,12 @@
 (defclib
   libreprap
   (:libname "reprap")
-  (:structs
-   (packed :s1 short :s2 short))
-  (:unions
-   (splitint :theint int :packed packed))
   (:callbacks
    (sendcb [void* void* void* constchar* size_t] void)
    (recvcb [void* void* constchar* size_t] void)
    (replycb [void* void* void* float] void)
    (boolcb [void* void* char] void)
-   (errcb [void* void* int constchar* size_t]))
+   (errcb [void* void* int constchar* size_t] void))
   (:functions
    (rr_enumerate_ports [] void*)
    (rr_create [enum ;; rr_proto
@@ -30,19 +26,32 @@
 	     constchar* ;; port
 	     long] ;; speed
 	    int)
-   (rr_reset [void*] int) ;; rr_dev
+   (rr_reset [void*] void) ;; rr_dev
    (rr_close [void*] int) ;; rr_dev
-   (rr_free [void*] int) ;; rr_dev
+   (rr_free [void*] void) ;; rr_dev
    (rr_enqueue [void* ;; rr_dev
 		enum ;; rr_prio
 		void* ;; cbdata
                 constchar* ;; block
                 size_t] ;; block size
-	       void)))
+	       void)
+   (rr_handle_readable [void*] int) ;; rr_dev
+   (rr_handle_writable [void*] int) ;; rr_dev
+   (rr_flush [void*] int) ;; rr_dev
+   (rr_dev_fd [void*] int) ;; rr_dev
+   (rr_dev_lineno [void*] long) ;;rr_dev
+   (rr_dev_buffered [void*] int))) ;; rr_dev
 
 (loadlib libreprap)
 
+;; Enums
 (def rr-proto (zipmap [:simple :fived :tonokip] (range)))
+(def rr-prio (zipmap [:normal :high :resend :count] (range)))
+(def rr-error (zipmap [:block-too-large :write-failed :unsupported-proto
+                       :unknown-reply :uncached-resend :hardware-fault
+                       :unsent-resend :malformed-resend-request] (range -1 -100 -1)))
+(def rr-reply (zipmap [:ok :nozzle-temp :bed-temp
+                       :x-pos :y-pos :z-pos :e-pos] (range)))
 
 (defn enumerate-ports []
   (.getStringArray (rr_enumerate_ports) 0))
@@ -74,8 +83,50 @@
                     nil))))
   (free-dev dev))
 
+(defmacro access-dev [dev & code]
+  `(locking @~dev
+     (let [~dev @~dev]
+       (when (not ~dev)
+         (throw (Exception. "Null pointer dereference")))
+       ~@code)))
+
 (defn reset-dev [dev]
   (locking @dev
     (when (not @dev)
       (throw (Exception. "Null pointer dereference")))
     (rr_reset @dev)))
+
+(defn dev->fd [dev]
+  (access-dev dev
+    (rr_dev_fd dev)))
+
+(defn dev->lineno [dev]
+  (access-dev dev
+    (rr_dev_lineno [dev])))
+
+(defn dev-buffered? [dev]
+  (access-dev dev
+    (rr_dev_buffered dev)))
+
+(defn open-dev [dev port speed]
+  (access-dev dev
+    (rr_open dev port speed)))
+
+(defn close-dev [dev]
+  (access-dev dev
+    (rr_close dev)))
+  
+(defn enqueue [dev prio block & [cbdata]]
+  (access-dev dev (rr_enqueue dev (rr-prio prio) nil block (count block))))
+
+(defn handle-readable [dev]
+  (access-dev dev
+    (rr_handle_readable dev)))
+
+(defn handle-writable [dev]
+  (access-dev dev
+    (rr_handle_writable dev)))
+
+(defn flush-queue [dev]
+  (access-dev dev
+    (rr_flush dev)))
