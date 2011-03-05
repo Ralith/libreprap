@@ -90,14 +90,16 @@ int rr_open(rr_dev device, const char *port, long speed) {
 void empty_buffers(rr_dev device) {
   unsigned i;
   for(i = 0; i < RR_PRIO_COUNT; ++i) {
-    blocknode *j = device->sendhead[i];
-    while(j != NULL) {
-      blocknode *next = j->next;
-      free(j);
-      j = next;
+    if(device->sendhead[i]) {
+      blocknode *j = device->sendhead[i];
+      while(j != NULL) {
+        blocknode *next = j->next;
+        free(j);
+        j = next;
+      }
+      free(device->sendhead[i]);
+      device->sendhead[i] = NULL;
     }
-    free(device->sendhead[i]);
-    device->sendhead[i] = NULL;
   }
   for(i = 0; i < device->sentcachesize; ++i) {
     if(device->sentcache[i]) {
@@ -201,6 +203,8 @@ ssize_t fmtblock(rr_dev device, blocknode *node) {
 }
 
 void rr_enqueue_internal(rr_dev device, rr_prio priority, void *cbdata, const char *block, size_t nbytes, long long line) {
+  assert(device);
+  assert(block);
   blocknode *node = malloc(sizeof(blocknode));
   node->next = NULL;
   node->cbdata = cbdata;
