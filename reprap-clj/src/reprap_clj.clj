@@ -1,7 +1,8 @@
 (ns reprap-clj
   (:use [clj-native.direct :only [defclib loadlib typeof]]
         [clj-native.structs :only [byref byval]]
-        [clj-native.callbacks :only [callback]]))
+        [clj-native.callbacks :only [callback]]
+        [net.n01se.clojure-jna.libc-utils :only [select]]))
 
 (defclib
   libreprap
@@ -56,11 +57,17 @@
 (defn enumerate-ports []
   (.getStringArray (rr_enumerate_ports) 0))
 
+;; (def default-callbacks
+
 (defn create-dev [& {:keys [proto onsend onsend-d onrecv onrecv-d onreply onreply-d onerr onerr-d
                         want-writable want-writable-d resend-cache-size]
-                 :or {proto :fived resend-cache-size 64}}]
+                     :or {proto :fived
+                          resend-cache-size 64
+                          want-writable (callback boolcb (fn [& TODO] (println "want_writable called")))
+                          onrecv (callback recvcb (fn [dev data line size]
+                                                    (println "Received: " (subs line 0 size))))}}]
   (atom (rr_create (rr-proto proto) onsend onsend-d onrecv onrecv-d onreply onreply-d
-             onerr onerr-d want-writable want-writable-d resend-cache-size)))
+                   onerr onerr-d want-writable want-writable-d resend-cache-size)))
 
 (defn free-dev [dev]
   (locking @dev
@@ -104,9 +111,12 @@
   (access-dev dev
     (rr_dev_lineno [dev])))
 
+(defn int2bool [i]
+  (not (= i 0)))
+
 (defn dev-buffered? [dev]
   (access-dev dev
-    (rr_dev_buffered dev)))
+    (int2bool (rr_dev_buffered dev))))
 
 (defn open-dev [dev port speed]
   (access-dev dev
@@ -117,6 +127,7 @@
     (rr_close dev)))
   
 (defn enqueue [dev prio block & [cbdata]]
+  {:pre (< 0 count block)}
   (access-dev dev (rr_enqueue dev (rr-prio prio) nil block (count block))))
 
 (defn handle-readable [dev]
@@ -130,3 +141,41 @@
 (defn flush-queue [dev]
   (access-dev dev
     (rr_flush dev)))
+
+(defn handle-all [dev]
+  (let [fd (dev->fd dev)
+        [readfds writefds errfds] (select [fd] [fd] [] 10)]
+    (when (readfds fd)
+      (handle-readable dev))
+    (when (writefds fd)
+      (handle-writable dev))))
+
+(defn comms-loop [dev lines]
+  (loop [lines lines]
+    (let [line (first lines)]
+      (if (< 0 (count line))
+        (do (enqueue dev :normal line)
+            (println "Enqueued:" line)
+            (Thread/sleep 100)
+            (handle-all dev)
+            (recur (rest lines)))
+        (do
+          (flush-queue dev)
+          (handle-all dev))))))
+
+(defn test-main []
+  (let [dev (create-dev)]
+    (open-dev dev "/dev/ttyACM0" 115200)
+    (handle-all dev)
+    ;(handle-readable dev)
+    ;(enqueue dev :normal "M105\n")
+    ;(handle-writable dev)
+    ;(handle-readable dev)
+    ;(enqueue dev :normal "M105\n")
+    ;(handle-writable dev)
+    ;(handle-readable dev)
+    ;(handle-writable dev)
+    ;(handle-readable dev)
+    (comms-loop dev ["M105\n" "G1 F10 X10\n" "M105\n"])
+    (close-dev dev)
+    (free-dev dev)))
