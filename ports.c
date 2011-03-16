@@ -18,6 +18,12 @@ const char *rr_port_name(const rr_port port) {
   return port->name;
 }
 
+void rr_port_seral_set_speed(rr_port port, unsigned long speed) {
+  if(port->type == PORT_SERIAL) {
+    port->serial.baud = speed;
+  }
+}
+
 int rr_port_open(rr_port port) {
   switch(port->type) {
   case PORT_SERIAL:
