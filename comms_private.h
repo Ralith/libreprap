@@ -1,10 +1,6 @@
 #ifndef _COMMS_PRIVATE_H_
 #define _COMMS_PRIVATE_H_
 
-#ifdef USB
-#include <libusb-1.0/libusb.h>
-#endif
-
 #include "gcode.h"
 #include "ports.h"
 
