@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 
 #include "ports.h"
 #include "ports_private.h"
@@ -20,9 +21,6 @@ void blocknode_free(blocknode* node) {
   free(node);
 }
 
-int rr_dev_fd(rr_dev device) {
-  return device->fd;
-}
 unsigned long rr_dev_lineno(rr_dev device) {
   return device->lineno;
 }
@@ -42,7 +40,7 @@ rr_dev rr_create(rr_proto proto,
                  rr_recvcb onrecv, void *onrecv_data,
                  rr_replycb onreply, void *onreply_data,
                  rr_errcb onerr, void *onerr_data,
-                 rr_boolcb want_writable, void *ww_data,
+                 rr_fdcb onfd, void *onfd_data,
                  size_t resend_cache_size) {
   rr_dev device = malloc(sizeof(struct rr_dev_t));
 
@@ -70,37 +68,20 @@ rr_dev rr_create(rr_proto proto,
   device->onreply_data = onreply_data;
   device->onerr = onerr;
   device->onerr_data = onerr_data;
-  device->want_writable = want_writable;
-  device->ww_data = ww_data;
+  device->onfd = onfd;
+  device->onfd_data = onfd_data;
   device->lineno = 0;
-  device->fd = -1;
-#ifdef USB
-  device->usb = NULL;
-#endif
+  device->port = NULL;
   
   return device;
 }
 
 int rr_open(rr_dev device, rr_port port) {
-  switch(port->type) {
-  case PORT_SERIAL:
-    device->fd = serial_open(port->serial.path, port->serial.baud);
-    if(device->fd < 0) {
-      return device->fd;
-    }
-    break;
-#ifdef USB
-  case PORT_USB:
-    if(device->proto != RR_PROTO_USB) {
-      return -1;
-    }
-    int result = libusb_open(port->usb, &device->usb);
-    if(result != 0) {
-      device->usb = NULL;
-      return result;
-    }
-#endif
+  int result = rr_port_open(port);
+  if(result != 0) {
+    return result;
   }
+  device->port = port;
   return 0;
 }
 
@@ -130,20 +111,8 @@ void rr_reset(rr_dev device) {
 }
 
 int rr_close(rr_dev device) {
-  int result = 0;
-#ifdef USB
-  if(device->usb) {
-    libusb_close(device->usb);
-  } else {
-#endif
-    do {
-      result = close(device->fd);
-    } while(result < 0 && errno == EINTR);
-#ifdef USB
-  }
-  device->usb = NULL;
-#endif
-  device->fd = -1;
+  int result = rr_port_close(device->port);
+  device->port = NULL;
   rr_reset(device);
   return result;
 }
@@ -235,7 +204,8 @@ void rr_enqueue_internal(rr_dev device, rr_prio priority, void *cbdata, const ch
   if(!device->sendhead[priority]) {
     device->sendhead[priority] = node;
     device->sendtail[priority] = node;
-    device->want_writable(device, device->ww_data, 1);
+    /* FIXME: USB support */
+    device->onfd(device, device->onfd_data, device->port->serial.fd, POLLOUT | POLLIN);
   } else {
     device->sendtail[priority]->next = node;
   }
@@ -272,7 +242,7 @@ int handle_reply(rr_dev device, const char *reply, size_t nbytes) {
   return 0;
 }
 
-int rr_handle_readable(rr_dev device) {
+int handle_readable(rr_dev device) {
   /* Grow receive buffer if it's full */
   if(device->recvbuf_fill == device->recvbufsize) {
     device->recvbuf = realloc(device->recvbuf, 2*device->recvbufsize);
@@ -281,7 +251,8 @@ int rr_handle_readable(rr_dev device) {
   ssize_t result;
 
   do {
-    result = read(device->fd, device->recvbuf + device->recvbuf_fill, device->recvbufsize - device->recvbuf_fill);
+    /* FIXME: USB support */
+    result = read(device->port->serial.fd, device->recvbuf + device->recvbuf_fill, device->recvbufsize - device->recvbuf_fill);
   } while(result < 0 && errno == EINTR);
   if(result < 0) {
     return result;
@@ -322,7 +293,7 @@ int rr_handle_readable(rr_dev device) {
   return 0;
 }
 
-int rr_handle_writable(rr_dev device) {
+int handle_writable(rr_dev device) {
   ssize_t result;
   if(device->sendbuf_fill == 0) {
     /* Last block is gone; prepare to send a new block */
@@ -345,14 +316,16 @@ int rr_handle_writable(rr_dev device) {
     }
     if(!node) {
       /* No data to write */
-      device->want_writable(device, device->ww_data, 0);
+      /* FIXME: USB support */
+      device->onfd(device, device->onfd_data, device->port->serial.fd, POLLIN);
       return 0;
     }
   }
 
   /* Perform write */
   do {
-    result = write(device->fd, device->sendbuf + device->bytes_sent, device->sendbuf_fill - device->bytes_sent);
+    /* FIXME: USB support */
+    result = write(device->port->serial.fd, device->sendbuf + device->bytes_sent, device->sendbuf_fill - device->bytes_sent);
   } while(result < 0 && errno == EINTR);
   
   if(result < 0) {
@@ -388,27 +361,36 @@ int rr_handle_writable(rr_dev device) {
   return result;
 }
 
+int rr_handle_events(rr_dev device) {
+  int result;
+  result = handle_readable(device);
+  if(result != 0) return result;
+  result = handle_writable(device);
+  return result;
+}
+
 int rr_flush(rr_dev device) {
   /* Disable non-blocking mode */
+  /* FIXME: USB support */
   int flags;
-  if((flags = fcntl(device->fd, F_GETFL, 0)) < 0) {
+  if((flags = fcntl(device->port->serial.fd, F_GETFL, 0)) < 0) {
     return flags;
   }
-  if(fcntl(device->fd, F_SETFL, flags & ~O_NONBLOCK) == -1) {
+  if(fcntl(device->port->serial.fd, F_SETFL, flags & ~O_NONBLOCK) == -1) {
     return -1;
   }
 
   int result = 0;
   while(rr_dev_buffered(device) && result >= 0) {
-    result = rr_handle_writable(device);
-  }
-
-  if(result >= 0) {
-    result = fcntl(device->fd, F_SETFL, flags);
-  } else {
-    fcntl(device->fd, F_SETFL, flags);
+    result = handle_writable(device);
   }
 
   /* Restore original mode */
+  if(result >= 0) {
+    result = fcntl(device->port->serial.fd, F_SETFL, flags);
+  } else {
+    fcntl(device->port->serial.fd, F_SETFL, flags);
+  }
+
   return result;
 }

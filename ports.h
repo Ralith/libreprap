@@ -11,6 +11,9 @@ rr_port rr_port_serial(const char *path, unsigned long speed);
 
 const char *rr_port_name(const rr_port port);
 
+int rr_port_open(rr_port port);
+int rr_port_close(rr_port port);
+
 void rr_port_free(rr_port port);
 
 #ifdef __cplusplus

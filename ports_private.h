@@ -19,9 +19,13 @@ typedef struct rr_port_t {
     struct {
       char *path;
       unsigned long baud;
+      int fd;
     } serial;
 #ifdef USB
-    libusb_device *usb;
+    struct {
+      libusb_device *device;
+      libusb_device_handle *handle;
+    } usb;
 #endif
   };
 } rr_port_t;
