@@ -22,9 +22,15 @@ typedef enum {
   RR_PROTO_FIVED,
   /* 5D with different syntax for some absurd reason */
   RR_PROTO_TONOKIP,
-  /* Streamlined native USB */
+  /* See rr_usb_proto */
   RR_PROTO_USB,
 } rr_proto;
+
+typedef enum {
+  RR_USB_SIMPLE = 0,
+  RR_USB_NRRG = 1,
+  RR_USB_COUNT
+} rr_usb_proto;
 
 typedef enum {
   RR_E_BLOCK_TOO_LARGE = -1,

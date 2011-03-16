@@ -5,6 +5,8 @@
 #include <libusb-1.0/libusb.h>
 #endif
 
+#include "comms.h"
+
 typedef enum {
   PORT_SERIAL,
 #ifdef USB
@@ -25,6 +27,7 @@ typedef struct rr_port_t {
     struct {
       libusb_device *device;
       libusb_device_handle *handle;
+      rr_usb_proto proto;
     } usb;
 #endif
   };
