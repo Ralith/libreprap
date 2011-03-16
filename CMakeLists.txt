@@ -15,6 +15,7 @@ include(CPack)
 add_definitions(-Wall -Wextra)
 
 add_library(reprap SHARED
+  reprap.c
   serial.c
   common.c
   fived.c
@@ -34,4 +35,4 @@ else(USB_FOUND)
 endif(USB_FOUND)
 
 install(TARGETS reprap DESTINATION lib)
-install(FILES comms.h util.h ports.h DESTINATION include/reprap)
+install(FILES reprap.h comms.h util.h ports.h DESTINATION include/reprap)
