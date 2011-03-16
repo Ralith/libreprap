@@ -3,6 +3,10 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
+
+#include "serial.h"
 
 rr_port rr_port_serial(const char *path, unsigned long speed) {
   rr_port ret = malloc(sizeof(rr_port_t));
@@ -11,7 +15,7 @@ rr_port rr_port_serial(const char *path, unsigned long speed) {
   strcpy(ret->serial.path, path);
   ret->serial.baud = speed;
   ret->serial.fd = -1;
-  return ret
+  return ret;
 }
 
 const char *rr_port_name(const rr_port port) {
@@ -25,21 +29,20 @@ void rr_port_seral_set_speed(rr_port port, unsigned long speed) {
 }
 
 int rr_port_open(rr_port port) {
+  int result;
   switch(port->type) {
   case PORT_SERIAL:
-    port->serial.fd = serial_open(port->serial.path, port->serial.baud);
-    if(port->serial.fd < 0) {
-      return port->serial.fd;
+    result = serial_open(port->serial.path, port->serial.baud);
+    if(port->serial.fd >= 0) {
+      port->serial.fd = result;
     }
     break;
-#ifdef USB
-  case PORT_USB:
-    int result = libusb_open(port->usb.device, &port->usb.handle);
-    if(result != 0) {
-      return result;
-    }
-#endif
+  case PORT_USB: {
+    result = libusb_open(port->usb.device, &port->usb.handle);
+    break;
   }
+  }
+  return 0;
 }
 
 int rr_port_close(rr_port port) {
@@ -66,13 +69,16 @@ void rr_port_free(rr_port port) {
   switch(port->type) {
   case PORT_SERIAL:
     if(port->serial.fd >= 0) {
-      close(ret->serial.fd);
+      close(port->serial.fd);
     }
-    free(ret->serial.path);
+    free(port->serial.path);
     break;
 #ifdef USB
   case PORT_USB:
-    libusb_unref_device(ret->usb);
+    if(port->usb.handle) {
+      libusb_close(port->usb.handle);
+    }
+    libusb_unref_device(port->usb.device);
     break;
 #endif
   }
