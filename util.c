@@ -46,7 +46,6 @@ rr_port *rr_enumerate_ports() {
         libusb_get_device_descriptor(devs[i], &desc);
 
         if(is_usb_reprap(desc)) {
-          
           if(fill >= size) {
             size *= 2;
             ports = realloc(ports, size * sizeof(rr_port));
@@ -55,6 +54,8 @@ rr_port *rr_enumerate_ports() {
           
           ports[fill]->type = PORT_USB;
 
+          /* TODO: We should be able to get the actual length from the
+           * device, rather than guessing and possibly truncating. */
           const size_t namemax = 256;
           ports[fill]->name = malloc(namemax);
           libusb_device_handle *handle;
@@ -62,9 +63,10 @@ rr_port *rr_enumerate_ports() {
           libusb_get_string_descriptor_ascii(handle, desc.iProduct, (unsigned char*)ports[fill]->name, namemax);
           libusb_close(handle);
 
-
           ports[fill]->usb.device = devs[i];
-          ports[fill]->usb.handle = NULL;          
+          ports[fill]->usb.handle = NULL;
+          ports[fill]->usb.proto = desc.bDeviceProtocol;
+
           ++fill;
         }
       }
