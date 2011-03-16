@@ -3,9 +3,9 @@
 
 libusb_context *usbctx;
 
-void rr_init() {
+int rr_init() {
 #ifdef USB
-  libusb_init(&usbctx);
+  return libusb_init(&usbctx);
 #endif
 }
 
