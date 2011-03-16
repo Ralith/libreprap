@@ -9,6 +9,7 @@ add_library(reprap SHARED
   common.c
   fived.c
   tonokip.c
+  ports.c
   comms.c
   util.c
   )
