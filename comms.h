@@ -68,8 +68,8 @@ typedef void (*rr_recvcb)(rr_dev, void *, const char *, size_t);
 /* Invoked when a known reply is received and parsed */
 /* Device, callback user data, reply code, reply value */
 typedef void (*rr_replycb)(rr_dev, void *, rr_reply, float);
-/* Device, callback user data, boolean */
-typedef void (*rr_boolcb)(rr_dev, void *, char);
+/* Device, callback user data, fd, flags from poll.h */
+typedef void (*rr_fdcb)(rr_dev, void *, int, int);
 /* Invoked when a reply from the device indicates an error */
 /* Device, callback user data, error code, message responsible, length
  * thereof */
@@ -82,7 +82,7 @@ rr_dev rr_create(rr_proto proto,
                  rr_recvcb onrecv, void *onrecv_data,
                  rr_replycb onreply, void *onreply_data,
                  rr_errcb onerr, void *onerr_data,
-                 rr_boolcb want_writable, void *ww_data,
+                 rr_fdcb onfd, void *onfd_data,
                  size_t resend_cache_size);
 int rr_open(rr_dev device, rr_port port);
 void rr_reset(rr_dev device);
@@ -90,10 +90,9 @@ int rr_close(rr_dev device);
 /* Deallocate */
 void rr_free(rr_dev device);
 
+int rr_handle_events(rr_dev device);
 
 /* Accessors */
-/* File descriptor; <0 if not connected */
-int rr_dev_fd(rr_dev device);
 /* Number of lines that have been since open */
 unsigned long rr_dev_lineno(rr_dev device);
 /* Returns nonzero if and only if there is data waiting to be written */
@@ -102,12 +101,6 @@ int rr_dev_buffered(rr_dev device);
 /* nbytes MUST be < GCODE_BLOCKSIZE */
 void rr_enqueue(rr_dev device, rr_prio priority, void *cbdata, const char *block, size_t nbytes);
 #define rr_enqueue_c(d, p, cb, b) rr_enqueue(d, p, cb, b, strlen(b))
-
-int rr_handle_readable(rr_dev device);
-/* Should only be called if want_writable callback has most recently
- * been passed a nonzero second argument; is guaranteed to be a noop
- * otherwise */
-int rr_handle_writable(rr_dev device);
 
 /* Blocks until all buffered data has been written */
 int rr_flush(rr_dev device);

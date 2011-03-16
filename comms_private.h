@@ -6,6 +6,7 @@
 #endif
 
 #include "gcode.h"
+#include "ports.h"
 
 /* Do not change */
 #define SENDBUFSIZE (GCODE_BLOCKSIZE + BLOCK_TERMINATOR_LEN)
@@ -22,10 +23,6 @@ void blocknode_free(blocknode *node);
 
 struct rr_dev_t {
   rr_proto proto;
-  int fd;
-#ifdef USB
-  libusb_device_handle *usb;
-#endif
 
   /* Line currently being sent */
   unsigned long lineno;
@@ -48,8 +45,10 @@ struct rr_dev_t {
   rr_recvcb onrecv;
   rr_replycb onreply;
   rr_errcb onerr;
-  rr_boolcb want_writable;
-  void *onsend_data, *onrecv_data, *onreply_data, *onerr_data, *ww_data;
+  rr_fdcb onfd;
+  void *onsend_data, *onrecv_data, *onreply_data, *onerr_data, *onfd_data;
+
+  rr_port port;
 };
 
 void rr_enqueue_internal(rr_dev device, rr_prio priority, void *cbdata, const char *block, size_t nbytes, long long line);
