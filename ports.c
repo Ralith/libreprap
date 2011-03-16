@@ -8,9 +8,11 @@
 
 #include "serial.h"
 
-rr_port rr_port_serial(const char *path, unsigned long speed) {
+rr_port rr_port_serial(const char *name, const char *path, unsigned long speed) {
   rr_port ret = malloc(sizeof(rr_port_t));
   ret->type = PORT_SERIAL;
+  ret->name = malloc(strlen(name)+1);
+  strcpy(ret->name, name);
   ret->serial.path = malloc(strlen(path)+1);
   strcpy(ret->serial.path, path);
   ret->serial.baud = speed;
@@ -66,6 +68,7 @@ int rr_port_close(rr_port port) {
 }
 
 void rr_port_free(rr_port port) {
+  free(port->name);
   switch(port->type) {
   case PORT_SERIAL:
     if(port->serial.fd >= 0) {
